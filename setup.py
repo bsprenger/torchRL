@@ -225,7 +225,7 @@ def _main(argv):
             "tqdm",
             "hydra-core>=1.1",
             "hydra-submitit-launcher",
-            "git",
+            # "git",
         ],
         "checkpointing": [
             "torchsnapshot",

@@ -7,22 +7,23 @@
 This script reproduces the Proximal Policy Optimization (PPO) Algorithm
 results from Schulman et al. 2017 for the on MuJoCo Environments.
 """
+
 from __future__ import annotations
 
 import warnings
 
 import hydra
+
 from torchrl._utils import compile_with_warmup
 
 
 @hydra.main(config_path="", config_name="config_mujoco", version_base="1.1")
 def main(cfg: DictConfig):  # noqa: F821
-
     import torch.optim
     import tqdm
-
     from tensordict import TensorDict
     from tensordict.nn import CudaGraphModule
+    from utils_mujoco import eval_model, make_env, make_ppo_models
 
     from torchrl._utils import timeit
     from torchrl.collectors import SyncDataCollector
@@ -33,7 +34,6 @@ def main(cfg: DictConfig):  # noqa: F821
     from torchrl.objectives.value.advantages import GAE
     from torchrl.record import VideoRecorder
     from torchrl.record.loggers import generate_exp_name, get_logger
-    from utils_mujoco import eval_model, make_env, make_ppo_models
 
     torch.set_float32_matmul_precision("high")
 
@@ -224,7 +224,6 @@ def main(cfg: DictConfig):  # noqa: F821
 
         with timeit("training"):
             for j in range(cfg_loss_ppo_epochs):
-
                 # Compute GAE
                 with torch.no_grad(), timeit("adv"):
                     torch.compiler.cudagraph_mark_step_begin()
@@ -263,9 +262,11 @@ def main(cfg: DictConfig):  # noqa: F821
         )
 
         # Get test rewards
-        with torch.no_grad(), set_exploration_type(
-            ExplorationType.DETERMINISTIC
-        ), timeit("eval"):
+        with (
+            torch.no_grad(),
+            set_exploration_type(ExplorationType.DETERMINISTIC),
+            timeit("eval"),
+        ):
             if ((i - 1) * frames_in_batch) // cfg_logger_test_interval < (
                 i * frames_in_batch
             ) // cfg_logger_test_interval:
