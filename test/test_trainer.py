@@ -49,6 +49,7 @@ from torchrl.trainers.trainers import (
     REWARD_KEY,
     RewardNormalizer,
     SelectKeys,
+    TrainerHookBase,
     UpdateWeights,
 )
 
@@ -93,7 +94,9 @@ class MockingLossModule(nn.Module):
 _mocking_optim = MockingOptim()
 
 
-def mocking_trainer(file=None, optimizer=_mocking_optim) -> Trainer:
+def mocking_trainer(
+    file=None, optimizer=_mocking_optim, optimizer_hook=None
+) -> Trainer:
     trainer = Trainer(
         collector=MockingCollector(),
         total_frames=None,
@@ -101,6 +104,7 @@ def mocking_trainer(file=None, optimizer=_mocking_optim) -> Trainer:
         optim_steps_per_batch=None,
         loss_module=MockingLossModule(),
         optimizer=optimizer,
+        optimizer_hook=optimizer_hook,
         save_trainer_file=file,
     )
     trainer._pbar_str = OrderedDict()
@@ -635,6 +639,38 @@ class TestOptimizer:
             not torch.equal(p_before, p_after)
             for p_before, p_after in zip(model2_params_before, model2_params_after)
         )
+
+    def test_optimizer_hook_argument_takes_precedence(self):
+        class _CountingHook(TrainerHookBase):
+            def __init__(self):
+                self.called = 0
+
+            def __call__(self, losses_td, clip_grad_norm, clip_norm, index):
+                self.called += 1
+                return losses_td
+
+            def state_dict(self):
+                return {"called": self.called}
+
+            def load_state_dict(self, state_dict):
+                self.called = state_dict["called"]
+
+            def register(self, trainer, name="optimizer"):
+                trainer.register_op("optimizer", self)
+                trainer.register_module(name, self)
+
+        model = nn.Linear(10, 20)
+        optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
+        hook = _CountingHook()
+
+        trainer = mocking_trainer(optimizer=optimizer, optimizer_hook=hook)
+        assert any(module is hook for module in trainer._modules.values())
+
+        x = torch.randn(5, 10)
+        td = TensorDict({"loss": model(x).sum()}, batch_size=[])
+        trainer._optimizer_hook(td)
+
+        assert hook.called == 1
 
 
 class TestLogReward:

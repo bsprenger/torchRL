@@ -124,6 +124,9 @@ class Trainer:
             TensorDict where every key points to a different loss component.
         optimizer (optim.Optimizer): An optimizer that trains the parameters
             of the model.
+        optimizer_hook (TrainerHookBase, optional): Custom optimizer hook that
+            defines how optimization is performed. If provided, it takes
+            precedence over the default OptimizerHook.
         logger (Logger, optional): a Logger that will handle the logging.
         optim_steps_per_batch (int, optional): number of optimization steps
             per collection of data. An trainer works as follows: a main loop
@@ -181,6 +184,7 @@ class Trainer:
         optim_steps_per_batch: int,
         loss_module: LossModule | Callable[[TensorDictBase], TensorDictBase],
         optimizer: optim.Optimizer | None = None,
+        optimizer_hook: TrainerHookBase | None = None,
         logger: Logger | None = None,
         clip_grad_norm: bool = True,
         clip_norm: float | None = None,
@@ -273,7 +277,9 @@ class Trainer:
 
         self._modules = {}
 
-        if self.optimizer is not None:
+        if optimizer_hook is not None:
+            optimizer_hook.register(self)
+        elif self.optimizer is not None:
             optimizer_hook = OptimizerHook(self.optimizer)
             optimizer_hook.register(self)
 
